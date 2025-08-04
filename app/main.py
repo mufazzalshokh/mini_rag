@@ -1,13 +1,16 @@
-from fastapi import FastAPI, UploadFile, File
-from typing import List
+from fastapi import FastAPI
+from dotenv import load_dotenv
+
+from app.api.ingest import router as ingest_router
+from app.api.ask    import router as ask_router
+
+load_dotenv()
 
 app = FastAPI()
 
 @app.get("/health")
-def health_check():
+async def health_check():
     return {"status": "OK"}
 
-@app.post("/ingest")
-async def ingest(files: List[UploadFile] = File(None)):
-    return {"files": len(files) if files else 0}
-
+app.include_router(ingest_router)
+app.include_router(ask_router)

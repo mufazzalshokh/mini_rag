@@ -1,107 +1,99 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List
 from pathlib import Path
-import shutil
-import hashlib
+import shutil, hashlib
 
+import tiktoken
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.docstore.document import Document
 from langchain_huggingface import HuggingFaceEmbeddings
-import tiktoken
 
-app = FastAPI()
+router = APIRouter()
 
-DOCS_PATH = Path("docs")
-INDEX_PATH = "faiss_index"
+DOCS_PATH   = Path("docs")
+INDEX_PATH  = "faiss_index"
 HASHES_PATH = DOCS_PATH / ".hashes"
 
 DOCS_PATH.mkdir(exist_ok=True)
-HASHES_PATH.touch(exist_ok=True)
+if not HASHES_PATH.exists():
+    HASHES_PATH.touch()
 
-# Load previously hashed filenames
-def load_hashed_files():
-    with HASHES_PATH.open("r", encoding="utf-8") as f:
-        return set(line.strip() for line in f.readlines())
+def load_hashed_files() -> set[str]:
+    return {line.strip() for line in HASHES_PATH.read_text().splitlines()}
 
-# Save new file hash
-def save_hashed_file(filename: str):
+def save_hashed_file(hash_val: str):
     with HASHES_PATH.open("a", encoding="utf-8") as f:
-        f.write(filename + "\n")
+        f.write(f"{hash_val}\n")
 
 def file_hash(file: UploadFile) -> str:
-    content = file.file.read()
+    data = file.file.read()
     file.file.seek(0)
-    return hashlib.sha256(content).hexdigest()
+    return hashlib.sha256(data).hexdigest()
 
-def save_uploaded_files(files: List[UploadFile]):
-    saved_files = []
-    existing_hashes = load_hashed_files()
-
+def save_uploaded_files(files: List[UploadFile]) -> List[Path]:
+    existing = load_hashed_files()
+    saved = []
     for file in files:
-        hash_val = file_hash(file)
-        if hash_val in existing_hashes:
-            print(f"Skipping previously ingested file: {file.filename}")
+        h = file_hash(file)
+        if h in existing:
             continue
         dest = DOCS_PATH / file.filename
         with dest.open("wb") as f:
             shutil.copyfileobj(file.file, f)
-        save_hashed_file(hash_val)
-        saved_files.append(dest)
-    return saved_files
+        save_hashed_file(h)
+        saved.append(dest)
+    return saved
 
-def load_all_documents():
-    texts = []
-
-    for file in DOCS_PATH.glob("*.txt"):
-        with file.open("r", encoding="utf-8") as f:
-            texts.append(Document(page_content=f.read(), metadata={"source": file.name}))
-
-    for file in DOCS_PATH.glob("*.pdf"):
-        loader = PyPDFLoader(str(file))
-        texts.extend(loader.load())
-
-    return texts
+def load_all_documents() -> List[Document]:
+    docs: List[Document] = []
+    # TXT
+    for f in DOCS_PATH.glob("*.txt"):
+        text = f.read_text(encoding="utf-8")
+        docs.append(Document(page_content=text, metadata={"source": f.name}))
+    # PDF
+    for f in DOCS_PATH.glob("*.pdf"):
+        loader = PyPDFLoader(str(f))
+        docs.extend(loader.load())
+    # MD
+    for f in DOCS_PATH.glob("*.md"):
+        text = f.read_text(encoding="utf-8")
+        docs.append(Document(page_content=text, metadata={"source": f.name}))
+    return docs
 
 def estimate_tokens(text: str) -> int:
     enc = tiktoken.get_encoding("cl100k_base")
     return len(enc.encode(text))
 
-@app.get("/health")
-def health_check():
-    return {"status": "OK"}
-
-@app.post("/ingest")
+@router.post("/ingest")
 async def ingest(files: List[UploadFile] = File(None)):
-    # Save uploaded files if any
     if files:
         save_uploaded_files(files)
 
     docs = load_all_documents()
     if not docs:
-        return JSONResponse(status_code=400, content={"error": "No documents found to ingest."})
+        raise HTTPException(status_code=400, detail="No docs to ingest")
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-    all_chunks = text_splitter.split_documents(docs)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+    chunks  = splitter.split_documents(docs)
 
-    # Remove duplicate chunks
-    seen = set()
-    unique_chunks = []
-    for chunk in all_chunks:
-        if chunk.page_content not in seen:
-            seen.add(chunk.page_content)
-            unique_chunks.append(chunk)
+    seen = set(); unique = []
+    for idx, c in enumerate(chunks):
+        if c.page_content not in seen:
+            seen.add(c.page_content)
+            c.metadata["chunk"] = idx
+            unique.append(c)
 
-    est_tokens = sum(estimate_tokens(chunk.page_content) for chunk in unique_chunks)
+    est = sum(estimate_tokens(c.page_content) for c in unique)
 
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectorstore = FAISS.from_documents(unique_chunks, embeddings)
-    vectorstore.save_local(INDEX_PATH)
+    db = FAISS.from_documents(unique, embeddings)
+    db.save_local(INDEX_PATH)
 
     return JSONResponse({
         "docs": len(docs),
-        "chunks": len(unique_chunks),
-        "est_tokens": est_tokens
+        "chunks": len(unique),
+        "est_tokens": est
     })
