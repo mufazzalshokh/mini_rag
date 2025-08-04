@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 
-from app.api.ingest import router as ingest_router
-from app.api.ask    import router as ask_router
+from api.ingest import router as ingest_router
+from api.ask    import router as ask_router
 
 load_dotenv()
 

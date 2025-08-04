@@ -4,9 +4,9 @@ from collections import deque
 import time, json
 import tiktoken
 
-from app.api.vectorstore import similarity_search_with_citations
-from app.api.llm         import stream_openai_chat_completion
-from app.api.token_utils import estimate_costs
+from .vectorstore import similarity_search_with_citations
+from .llm         import stream_openai_chat_completion
+from .token_utils import estimate_costs
 
 router = APIRouter()
 
