@@ -1,34 +1,34 @@
 from fastapi import APIRouter, Request, HTTPException, status, Header
 from sse_starlette.sse import EventSourceResponse
 from app.core.config import settings
-import time
+from app.core.retrieval import hybrid_retrieve
+import openai
 
 router = APIRouter()
 
-# Dummy answer streaming for demo. Replace with real RAG logic!
-def dummy_stream_answer(question, max_tokens, budget_usd):
-    tokens = [
-        "This", "is", "a", "streamed", "answer.", "Citations:", "[1]", "Source1: snippet", "[2]", "Source2: snippet"
-    ]
-    usage = {"prompt_tokens": 10, "completion_tokens": len(tokens), "cost_usd": 0.001}
-    start = time.time()
-    for t in tokens:
-        yield {"event": "token", "data": t}
-        time.sleep(0.25)  # simulate latency
+def tokens_from_openai(context_chunks, question, max_tokens, model, api_key, budget_usd):
+    context_text = "\n---\n".join([f"[{i+1}] {c['chunk']}" for i, c in enumerate(context_chunks)])
+    prompt = (
+        f"Answer the user's question using ONLY the info in the context below. "
+        f"Cite sources inline as [1], [2], etc.\n\n"
+        f"Context:\n{context_text}\n\nQuestion: {question}\nAnswer:"
+    )
 
-    latency = int((time.time() - start) * 1000)
-    done_event = {
-        "event": "done",
-        "data": {
-            "answer": " ".join(tokens),
-            "citations": [
-                {"source_id": "source1.txt#0-512", "snippet": "Source1: snippet"},
-                {"source_id": "source2.txt#512-1024", "snippet": "Source2: snippet"}
-            ],
-            "usage": {**usage, "latency_ms": latency}
-        }
-    }
-    yield done_event
+    client = openai.OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        stream=True,
+    )
+
+    answer = ""
+    for chunk in response:
+        token = chunk.choices[0].delta.content
+        if token:
+            answer += token
+            yield {"event": "token", "data": token}
+    yield {"event": "done", "data": answer}
 
 @router.post("/ask")
 async def ask_endpoint(
@@ -45,17 +45,14 @@ async def ask_endpoint(
     if not question:
         raise HTTPException(status_code=400, detail="Missing question")
 
+    context_chunks = hybrid_retrieve(question, top_k=settings.TOP_K)
+
     async def event_generator():
-        for event in dummy_stream_answer(question, max_tokens, budget_usd):
+        for event in tokens_from_openai(
+            context_chunks, question, max_tokens, settings.MODEL, settings.OPENAI_API_KEY, budget_usd
+        ):
             if await request.is_disconnected():
                 break
-            if event["event"] == "token":
-                yield {"event": "token", "data": event["data"]}
-            elif event["event"] == "done":
-                yield {
-                    "event": "done",
-                    "data": event["data"]
-                }
-                break
+            yield event
 
     return EventSourceResponse(event_generator())
