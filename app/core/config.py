@@ -1,16 +1,18 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field
+import os
+from dotenv import load_dotenv
 
-class Settings(BaseSettings):
-    OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
-    X_API_KEY: str = Field(..., env="X_API_KEY")
-    CHUNK_SIZE: int = Field(500, env="CHUNK_SIZE")
-    TOP_K: int = Field(5, env="TOP_K")
-    MODEL: str = Field("gpt-3.5-turbo", env="MODEL")
-    RATE_LIMIT: int = Field(60, env="RATE_LIMIT")
+load_dotenv()
 
-    class Config:
-        env_file = ".env"  # Load from .env file
+class Settings:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    API_KEY = os.getenv("SERVICE_API_KEY", "changeme")  # For X-API-Key
+    MODEL = os.getenv("MODEL_NAME", "gpt-4o")
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 512))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 64))
+    TOP_K = int(os.getenv("TOP_K", 5))
+    RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", 60))
+    DOCS_PATH = os.getenv("DOCS_PATH", "./docs")
+    INDEX_PATH = os.getenv("INDEX_PATH", "./faiss_index/index.faiss")
+    META_PATH = os.getenv("META_PATH", "./faiss_index/index.pkl")
 
 settings = Settings()
-

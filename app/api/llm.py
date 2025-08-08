@@ -1,6 +1,13 @@
 import os, asyncio
 import openai
-from openai.error import RateLimitError, APIError
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+try:
+    from openai.error import RateLimitError, APIError
+except ImportError:
+    RateLimitError = getattr(openai, "RateLimitError", Exception)
+    APIError      = getattr(openai, "APIError", Exception)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 

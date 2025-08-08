@@ -1,0 +1,19 @@
+OpenAI is an artificial intelligence research and deployment company founded in December 2015. The organization was initially established as a non-profit by Elon Musk, Sam Altman, Greg Brockman, Ilya Sutskever, John Schulman, and Wojciech Zaremba. Its mission is to ensure that artificial general intelligence (AGI)—highly autonomous systems that outperform humans at most economically valuable work—benefits all of humanity.
+
+OpenAI began with a focus on developing AI systems in an open, transparent, and cooperative way. Early on, they published research openly and collaborated with other institutions. In 2019, however, OpenAI transitioned to a “capped-profit” model and formed a for-profit subsidiary, OpenAI LP, to attract funding and scale its capabilities. Microsoft became a key strategic partner, investing $1 billion in 2019, and later increasing its investment to a reported $10 billion in 2023.
+
+The company is most known for developing advanced AI language models, such as GPT (Generative Pre-trained Transformer). The first version, GPT-1, was released in 2018. GPT-2, launched in 2019, demonstrated significant improvements but was initially not released publicly due to concerns about misuse. GPT-3, released in 2020, brought global attention to OpenAI for its ability to generate human-like text and perform complex tasks such as translation, coding, summarization, and more—all from a single prompt.
+
+In 2022, OpenAI released ChatGPT, a conversational chatbot based on GPT-3.5 and later GPT-4. ChatGPT quickly became one of the fastest-growing consumer applications in history, gaining over 100 million users in just a few months. It allows users to interact with AI in natural language, answering questions, generating content, writing code, and even simulating conversations.
+
+OpenAI’s models are trained using vast datasets of publicly available and licensed information from the internet. They employ deep learning techniques and transformer architectures to learn language patterns, semantics, reasoning, and even some degree of common sense. The organization emphasizes safety, alignment, and responsible deployment in its work, with dedicated teams focusing on AI alignment and misuse prevention.
+
+OpenAI also developed tools such as DALL·E for generating images from text prompts, Codex for writing code from natural language, and Whisper for speech recognition. Their APIs allow developers to integrate AI capabilities into various applications, making OpenAI's technology widely accessible.
+
+The company operates with a unique governance model. OpenAI’s non-profit parent oversees the for-profit subsidiary to ensure the organization’s mission remains focused on broad human benefit. They also publish safety and policy research to encourage responsible development across the AI field.
+
+Critics of OpenAI have raised concerns about centralization of AI power, potential job displacement due to automation, and the risk of misuse in areas like misinformation or cybercrime. OpenAI has responded by developing usage guidelines, monitoring tools, and working with policymakers and researchers to promote safe AI ecosystems.
+
+As of 2025, OpenAI continues to push the boundaries of AI capabilities. Its current flagship model, GPT-4o, is a multimodal model capable of understanding and generating not just text but also audio and image inputs. The company is exploring advanced applications in education, healthcare, legal tech, and enterprise automation.
+
+OpenAI remains one of the leading voices in the global AI community, committed to advancing the field while ensuring that the powerful technologies it creates are aligned with human values, fairness, and long-term safety.

@@ -1,99 +1,61 @@
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import StreamingResponse
-from collections import deque
-import time, json
-import tiktoken
-
-from .vectorstore import similarity_search_with_citations
-from .llm         import stream_openai_chat_completion
-from .token_utils import estimate_costs
+from fastapi import APIRouter, Request, HTTPException, status, Header
+from sse_starlette.sse import EventSourceResponse
+from app.core.config import settings
+import time
 
 router = APIRouter()
 
-RATE_LIMIT = 60   # max requests
-WINDOW     = 60   # per WINDOW seconds
-timestamps = deque()
+# Dummy answer streaming for demo. Replace with real RAG logic!
+def dummy_stream_answer(question, max_tokens, budget_usd):
+    tokens = [
+        "This", "is", "a", "streamed", "answer.", "Citations:", "[1]", "Source1: snippet", "[2]", "Source2: snippet"
+    ]
+    usage = {"prompt_tokens": 10, "completion_tokens": len(tokens), "cost_usd": 0.001}
+    start = time.time()
+    for t in tokens:
+        yield {"event": "token", "data": t}
+        time.sleep(0.25)  # simulate latency
+
+    latency = int((time.time() - start) * 1000)
+    done_event = {
+        "event": "done",
+        "data": {
+            "answer": " ".join(tokens),
+            "citations": [
+                {"source_id": "source1.txt#0-512", "snippet": "Source1: snippet"},
+                {"source_id": "source2.txt#512-1024", "snippet": "Source2: snippet"}
+            ],
+            "usage": {**usage, "latency_ms": latency}
+        }
+    }
+    yield done_event
 
 @router.post("/ask")
-async def ask(request: Request):
-    now = time.time()
-    while timestamps and timestamps[0] < now - WINDOW:
-        timestamps.popleft()
-    if len(timestamps) >= RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    timestamps.append(now)
+async def ask_endpoint(
+    request: Request,
+    x_api_key: str = Header(...),
+):
+    if x_api_key != settings.API_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
-    body   = await request.json()
-    q      = body.get("question")
-    max_t  = body.get("max_tokens", 400)
-    budget = body.get("budget_usd")
-    if not q or budget is None:
-        raise HTTPException(status_code=400, detail="`question` and `budget_usd` required")
+    body = await request.json()
+    question = body.get("question")
+    max_tokens = body.get("max_tokens", 400)
+    budget_usd = body.get("budget_usd", 0.01)
+    if not question:
+        raise HTTPException(status_code=400, detail="Missing question")
 
-    # 1) retrieve similar chunks
-    docs = similarity_search_with_citations(q, k=5)
-    context = "\n\n".join(d.page_content for d in docs)
+    async def event_generator():
+        for event in dummy_stream_answer(question, max_tokens, budget_usd):
+            if await request.is_disconnected():
+                break
+            if event["event"] == "token":
+                yield {"event": "token", "data": event["data"]}
+            elif event["event"] == "done":
+                yield {
+                    "event": "done",
+                    "data": event["data"]
+                }
+                break
 
-    # 2) build prompt & count prompt tokens
-    prompt = (
-        "Answer using the context below. If unknown, say so.\n\n"
-        f"Context:\n{context}\n\nQuestion: {q}\nAnswer:"
-    )
-    prompt_tokens = len(
-        tiktoken.get_encoding("cl100k_base").encode(prompt)
-    )
-    start = time.perf_counter()
-    tokens = []
-
-    async def gen():
-        try:
-            async for tok in stream_openai_chat_completion(
-                [{"role":"user","content":prompt}],
-                max_tokens=max_t
-            ):
-                tokens.append(tok)
-                cost = estimate_costs(prompt_tokens, len("".join(tokens).split()))
-                if cost > budget:
-                    payload = {
-                        "answer": None,
-                        "citations": [],
-                        "usage": {
-                            "prompt_tokens": prompt_tokens,
-                            "completion_tokens": len("".join(tokens).split()),
-                            "cost_usd": cost,
-                            "latency_ms": int((time.perf_counter()-start)*1000)
-                        },
-                        "error": "budget_exceeded"
-                    }
-                    yield f"event: done\ndata: {json.dumps(payload)}\n\n"
-                    return
-                yield f"event: token\ndata: {tok}\n\n"
-        except Exception as e:
-            # Stream an error event if something breaks
-            err = {"error": str(e)}
-            yield f"event: error\ndata: {json.dumps(err)}\n\n"
-            return
-
-        # send final event
-        answer = "".join(tokens)
-        cost   = estimate_costs(prompt_tokens, len(answer.split()))
-        citations = [
-            {
-                "source_id": f"{d.metadata['source']}#{d.metadata.get('chunk','')}",
-                "snippet": d.page_content[:200],
-            }
-            for d in docs
-        ]
-        payload = {
-            "answer": answer,
-            "citations": citations,
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": len(answer.split()),
-                "cost_usd": cost,
-                "latency_ms": int((time.perf_counter()-start)*1000)
-            }
-        }
-        yield f"event: done\ndata: {json.dumps(payload)}\n\n"
-
-    return StreamingResponse(gen(), media_type="text/event-stream")
+    return EventSourceResponse(event_generator())
