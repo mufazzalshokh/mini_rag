@@ -1,5 +1,7 @@
-from fastapi import APIRouter, UploadFile, File, Request, HTTPException, status, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from app.core.config import settings
+from app.core.logging import make_request_id, log_request
+import time
 import os
 import shutil
 from typing import List
@@ -20,7 +22,14 @@ async def ingest_endpoint(
     files: List[UploadFile] = File(None),
     x_api_key: str = Header(...)
 ):
+    request_id = make_request_id()
+    start_time = time.time()
+    status_code = "ok"
+
     if x_api_key != settings.API_KEY:
+        status_code = "error"
+        latency = int((time.time() - start_time) * 1000)
+        log_request(request_id, route="/ingest", status=status_code, tokens=0, cost=None, latency=latency)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
     doc_folder = settings.DOCS_PATH
@@ -36,21 +45,32 @@ async def ingest_endpoint(
     doc_files = [os.path.join(doc_folder, f) for f in os.listdir(doc_folder)
                  if os.path.isfile(os.path.join(doc_folder, f))]
     if not doc_files:
+        status_code = "error"
+        latency = int((time.time() - start_time) * 1000)
+        log_request(request_id, route="/ingest", status=status_code, tokens=0, cost=None, latency=latency)
         return {"error": "No documents found in docs folder."}
 
     # 3. Chunk, deduplicate, embed, index
-    # -----> Put your actual chunking & indexing code here <-----
-    # We'll call a function like: build_index(doc_files)
-    # For now, let's mock:
     chunk_count = 0
     est_tokens = 0
     try:
-        # Imagine this calls your core RAG logic
-        from app.core.chunk_manager import build_index  # you implement this!
+        from app.core.chunk_manager import build_index
         chunk_count, est_tokens = build_index(doc_files)
     except Exception as e:
+        status_code = "error"
+        latency = int((time.time() - start_time) * 1000)
+        log_request(request_id, route="/ingest", status=status_code, tokens=0, cost=None, latency=latency)
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
+    latency = int((time.time() - start_time) * 1000)
+    log_request(
+        request_id,
+        route="/ingest",
+        status=status_code,
+        tokens=chunk_count,
+        cost=None,
+        latency=latency
+    )
     return {
         "docs": len(doc_files),
         "chunks": chunk_count,
