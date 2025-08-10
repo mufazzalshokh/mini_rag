@@ -1,0 +1,3 @@
+{"q":"What text was ingested?","ref":"Hello from Docker ingest test"}
+{"q":"List the document filenames that were ingested.","ref":"hello.txt test.txt.txt"}
+{"q":"Summarize the main ideas across the ingested documents.","ref":"OpenAI founded 2015 non-profit capped-profit Microsoft partnership GPT models GPT-4o safety alignment responsible deployment"}
