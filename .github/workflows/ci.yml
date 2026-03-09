@@ -28,6 +28,7 @@ jobs:
 
       - name: Run tests
         env:
+          PYTHONPATH: ${{ github.workspace }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           API_KEY: test
           MODEL_NAME: gpt-4o-mini
