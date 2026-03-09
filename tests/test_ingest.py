@@ -2,16 +2,15 @@ from app.core import chunk_manager
 
 
 def test_ingest_builds_index(client, tmp_path, monkeypatch):
-    doc = tmp_path / "sample.txt"
-    doc.write_text("This is a test document for ingestion.")
+    # Create ./docs relative to tmp_path so settings.docs_path ("./docs") resolves correctly
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "sample.txt").write_text("This is a test document for ingestion.")
 
-    # Now works because frozen=False
-    from app.core.config import settings
-    monkeypatch.setattr(settings, "docs_path", str(tmp_path))
-    monkeypatch.setattr(settings, "index_path", str(tmp_path / "index.faiss"))
-    monkeypatch.setattr(settings, "meta_path", str(tmp_path / "index.pkl"))
+    # Change CWD — now "./docs" points to our tmp docs_dir
+    monkeypatch.chdir(tmp_path)
 
-    # Mock at source so the import inside the route handler gets the mock
+    # Mock build_index so no real embeddings are needed in CI
     monkeypatch.setattr(chunk_manager, "build_index", lambda paths: (3, 50))
 
     r = client.post("/ingest", headers={"x-api-key": "test"})
