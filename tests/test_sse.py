@@ -1,38 +1,45 @@
-import requests, json
+import json
+from app.api import ask as ask_mod
 
-url = "http://127.0.0.1:8000/ask"
-headers = {
-    "x-api-key": "your-secret-key",
-    "Accept": "text/event-stream",
-    "Content-Type": "application/json",
-}
-payload = {"question": "What text was ingested?", "max_tokens": 50, "budget_usd": 0.02}
 
-with requests.post(url, json=payload, headers=headers, stream=True) as r:
-    if r.status_code != 200:
-        print("STATUS:", r.status_code)
-        # Try to show JSON first; fall back to raw text
-        try:
-            print("BODY:", r.json())
-        except Exception:
-            print("BODY:", r.text)
-        raise SystemExit(1)
+def fake_tokens():
+    yield json.dumps({"event": "token", "data": "The"})
+    yield json.dumps({"event": "token", "data": " ingested"})
+    yield json.dumps({"event": "token", "data": " text"})
+    yield json.dumps({"event": "done", "data": {
+        "answer": "The ingested text [1]",
+        "citations": [{"source_id": "sample.txt#0", "snippet": "The ingested text"}],
+        "usage": {"prompt_tokens": 8, "completion_tokens": 3, "cost_usd": 0.0, "latency_ms": 3}
+    }}), 3, 0.0, 3
 
-    for raw in r.iter_lines(decode_unicode=True):
-        if not raw:
-            continue
-        # EventSourceResponse prefixes with "data: "
-        line = raw
-        if line.startswith("data: "):
-            line = line[6:]
 
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            print(raw)  # show whatever came back
-            continue
+def test_sse_response_is_valid_json_lines(client, monkeypatch):
+    monkeypatch.setattr(ask_mod, "tokens_from_openai", lambda *a, **k: fake_tokens())
 
-        if msg.get("event") == "token":
-            print(msg["data"], end="", flush=True)
-        elif msg.get("event") == "done":
-            print("\n\n[DONE]", json.dumps(msg["data"], indent=2))
+    payload = {"question": "What text was ingested?", "max_tokens": 50, "budget_usd": 0.02}
+    headers = {"x-api-key": "test", "accept": "text/event-stream"}
+
+    with client.stream("POST", "/ask", json=payload, headers=headers) as r:
+        assert r.status_code == 200
+        lines = [l for l in r.iter_lines() if l.strip()]
+
+    # Every line must be valid JSON
+    for line in lines:
+        parsed = json.loads(line)
+        assert "event" in parsed
+        assert "data" in parsed
+
+
+def test_sse_token_events_contain_strings(client, monkeypatch):
+    monkeypatch.setattr(ask_mod, "tokens_from_openai", lambda *a, **k: fake_tokens())
+
+    payload = {"question": "What text was ingested?", "max_tokens": 50, "budget_usd": 0.02}
+    headers = {"x-api-key": "test", "accept": "text/event-stream"}
+
+    with client.stream("POST", "/ask", json=payload, headers=headers) as r:
+        lines = [l for l in r.iter_lines() if l.strip()]
+
+    token_events = [json.loads(l) for l in lines if json.loads(l)["event"] == "token"]
+    assert len(token_events) > 0
+    for e in token_events:
+        assert isinstance(e["data"], str)
