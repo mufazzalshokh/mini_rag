@@ -12,19 +12,22 @@ def fake_tokens():
     }}), 2, 0.0, 5
 
 
+def parse_sse_lines(r):
+    return [
+        line[6:] if line.startswith("data: ") else line
+        for line in r.iter_lines()
+        if line.strip() and line.strip() != "data:"
+    ]
+
+
 def test_ask_streams_tokens(client, monkeypatch):
     monkeypatch.setattr(ask_mod, "tokens_from_openai", lambda *a, **k: fake_tokens())
-
     payload = {"question": "What is in my documents?", "max_tokens": 50, "budget_usd": 0.01}
     headers = {"x-api-key": "test", "accept": "text/event-stream"}
 
     with client.stream("POST", "/ask", json=payload, headers=headers) as r:
         assert r.status_code == 200
-        lines = [
-        line[6:] if line.startswith("data: ") else line
-        for line in r.iter_lines()
-        if line.strip() and line.strip() != "data:"
-        ]
+        lines = parse_sse_lines(r)
 
     events = [json.loads(line) for line in lines]
     event_types = [e["event"] for e in events]
@@ -34,12 +37,11 @@ def test_ask_streams_tokens(client, monkeypatch):
 
 def test_ask_done_payload_has_required_fields(client, monkeypatch):
     monkeypatch.setattr(ask_mod, "tokens_from_openai", lambda *a, **k: fake_tokens())
-
     payload = {"question": "What is in my documents?", "max_tokens": 50, "budget_usd": 0.01}
     headers = {"x-api-key": "test", "accept": "text/event-stream"}
 
     with client.stream("POST", "/ask", json=payload, headers=headers) as r:
-        lines = [line for line in r.iter_lines() if line.strip()]
+        lines = parse_sse_lines(r)
 
     done_event = next(e for e in [json.loads(l) for l in lines] if e["event"] == "done")
     data = done_event["data"]
