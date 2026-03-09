@@ -6,7 +6,7 @@ from openai import APITimeoutError, APIConnectionError, APIStatusError, RateLimi
 from app.core.config import settings
 from app.core.retrieval import hybrid_retrieve
 from app.core.rate_limit import rate_limiter
-from app.core.logging import make_request_id, log_request
+from app.core.logger import make_request_id, log_request
 from app.api import auth
 
 import openai

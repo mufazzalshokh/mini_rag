@@ -3,6 +3,10 @@ import faiss
 import numpy as np
 import pickle
 from app.core.config import settings
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
+_model = None  # Global model instance for reuse
 
 def load_docs(file_paths):
     docs = []
@@ -24,10 +28,16 @@ def simple_chunk(text, size=512, overlap=64):
         i += size - overlap
     return chunks
 
-def embed(texts):
-    # For demo: return fake embeddings
-    # Replace with real OpenAI or sentence-transformers
-    return np.random.rand(len(texts), 384).astype('float32')
+def get_embedding_model() -> SentenceTransformer:
+    global _model
+    if _model is None:
+        _model = SentenceTransformer("all-MiniLM-L6-v2")  # 384-dim, fast, free
+    return _model
+
+def embed(texts: list[str]) -> np.ndarray:
+    model = get_embedding_model()
+    vectors = model.encode(texts, normalize_embeddings=True)
+    return vectors.astype("float32")
 
 def build_index(file_paths):
     docs, sources = load_docs(file_paths)

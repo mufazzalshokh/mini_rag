@@ -9,5 +9,9 @@ app = FastAPI(title="Mini RAG Q&A")
 def root():
     return {"msg": "Mini RAG Q&A is running"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 app.include_router(ingest_router)
 app.include_router(ask_router)

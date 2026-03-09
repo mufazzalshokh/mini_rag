@@ -2,11 +2,14 @@ import faiss
 import numpy as np
 import pickle
 from app.core.config import settings
+from app.core.chunk_manager import get_embedding_model
+import numpy as np
 
 
-def embed_query(text):
-    # For demo: use random vectors, replace with real embedding!
-    return np.random.rand(1, 384).astype('float32')
+def embed_query(text: str) -> np.ndarray:
+    model = get_embedding_model()
+    vector = model.encode([text], normalize_embeddings=True)
+    return vector.astype("float32")
 
 def bm25_score(chunk, query):
     # Simple lexical: count shared words (improve later)

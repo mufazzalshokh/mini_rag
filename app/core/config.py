@@ -1,18 +1,34 @@
-import os
-from dotenv import load_dotenv
+# app/core/config.py
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from functools import lru_cache
 
-load_dotenv()
 
-class Settings:
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    API_KEY = os.getenv("SERVICE_API_KEY", "changeme")  # For X-API-Key
-    MODEL = os.getenv("MODEL_NAME", "gpt-4o")
-    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 512))
-    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 64))
-    TOP_K = int(os.getenv("TOP_K", 5))
-    RATE_LIMIT_RPM = int(os.getenv("RATE_LIMIT_RPM", 60))
-    DOCS_PATH = os.getenv("DOCS_PATH", "./docs")
-    INDEX_PATH = os.getenv("INDEX_PATH", "./faiss_index/index.faiss")
-    META_PATH = os.getenv("META_PATH", "./faiss_index/index.pkl")
+class Settings(BaseSettings):
+    # Required
+    openai_api_key: str
+    api_key: str = "changeme"
 
-settings = Settings()
+    # Optional with defaults
+    model_name: str = "gpt-4o-mini"
+    chunk_size: int = 512
+    chunk_overlap: int = 64
+    top_k: int = 5
+    rate_limit_rpm: int = 60
+    docs_path: str = "./docs"
+    index_path: str = "./faiss_index/index.faiss"
+    meta_path: str = "./faiss_index/index.pkl"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()  # backward-compatible singleton — nothing else breaks
+

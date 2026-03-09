@@ -5,7 +5,7 @@ import shutil
 import time
 
 from app.core.config import settings
-from app.core.logging import make_request_id, log_request
+from app.core.logger import make_request_id, log_request
 from app.api import auth
 
 router = APIRouter()
