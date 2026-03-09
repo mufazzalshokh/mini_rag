@@ -19,8 +19,8 @@ def bm25_score(chunk, query):
 
 def hybrid_retrieve(query, top_k=5):
     # 1. Load FAISS index and meta
-    index = faiss.read_index(settings.INDEX_PATH)
-    with open(settings.META_PATH, "rb") as f:
+    index = faiss.read_index(settings.index_path)
+    with open(settings.meta_path, "rb") as f:
         meta = pickle.load(f)
     chunks = meta["chunks"]
     sources = meta["sources"]
