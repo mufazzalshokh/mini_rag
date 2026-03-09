@@ -42,4 +42,4 @@ jobs:
           META_PATH: ./faiss_index/index.pkl
           RATE_LIMIT_RPM: 60
         run: |
-          pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=long
