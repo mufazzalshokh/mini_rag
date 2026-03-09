@@ -24,7 +24,7 @@ It ingests local documents, streams answers over **SSE**, **cites sources**, and
 For design decisions, module structure, and production trade-offs see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Project Structure
-\```
+```
 mini_rag/
 ├── app/
 │   ├── main.py              # FastAPI app, health endpoint
@@ -36,8 +36,7 @@ mini_rag/
 ├── docker-compose.yml
 ├── ARCHITECTURE.md
 └── Makefile
-\```
-
+```
 ## Getting Started
 
 ### 1) Local dev
