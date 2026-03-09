@@ -20,7 +20,11 @@ def test_ask_streams_tokens(client, monkeypatch):
 
     with client.stream("POST", "/ask", json=payload, headers=headers) as r:
         assert r.status_code == 200
-        lines = [line for line in r.iter_lines() if line.strip()]
+        lines = [
+        line[6:] if line.startswith("data: ") else line
+        for line in r.iter_lines()
+        if line.strip() and line.strip() != "data:"
+        ]
 
     events = [json.loads(line) for line in lines]
     event_types = [e["event"] for e in events]
