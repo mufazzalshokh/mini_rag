@@ -34,6 +34,7 @@ def get_openai_price(model: str) -> float:
         "gpt-3.5-turbo": 0.0005,
         "gpt-4": 0.01,
         "gpt-4o": 0.005,
+        "gpt-4o-mini": 0.00015
     }
     return prices.get(model, 0.01)
 
@@ -62,25 +63,6 @@ def maybe_answer_filenames(question: str, context_chunks):
         for i, ch in enumerate(context_chunks):
             citations.append({"source_id": f"{ch['source']}#{i}", "snippet": ch["chunk"][:120]})
         return answer, citations
-    return None
-
-
-def maybe_answer_ingested_text(question: str, context_chunks):
-    """
-    Deterministic answer for 'what text was ingested' style prompts.
-    Looks for the known 'Hello from Docker ingest test' chunk and cites its index.
-    """
-    q = question.lower()
-    if "what text was ingested" in q or ("what" in q and "ingested" in q and "text" in q):
-        target_idx = None
-        for i, ch in enumerate(context_chunks):
-            if "hello from docker ingest test" in ch["chunk"].lower():
-                target_idx = i + 1
-                break
-        if target_idx is not None:
-            answer = f"Hello from Docker ingest test [{target_idx}]"
-            citations = [{"source_id": f"{c['source']}#{j}", "snippet": c["chunk"][:120]} for j, c in enumerate(context_chunks)]
-            return answer, citations
     return None
 
 
@@ -248,7 +230,7 @@ async def ask_endpoint(
     _: None = Depends(auth.check_service_api_key),
 ):
     request_id = make_request_id()
-    rate_limiter("service", settings.RATE_LIMIT_RPM)
+    rate_limiter("service", settings.rate_limit_rpm)
 
     body = await request.json()
     question = body.get("question")
@@ -258,37 +240,14 @@ async def ask_endpoint(
         log_request(request_id, route="/ask", status="error")
         raise HTTPException(status_code=400, detail="Missing question")
 
-    context_chunks = hybrid_retrieve(question, top_k=settings.TOP_K)
+    context_chunks = hybrid_retrieve(question, top_k=settings.top_k)
 
     # Deterministic fast paths
-    special = maybe_answer_ingested_text(question, context_chunks)
-    if special is None:
-        special = maybe_answer_filenames(question, context_chunks)
-
-    test_mode = os.getenv("PYTEST_CURRENT_TEST") is not None
+    special = maybe_answer_filenames(question, context_chunks)
 
     if special is not None:
         answer_str, citations = special
         words = re.findall(r"\S+\s*", answer_str)
-
-        if test_mode:
-            # Aggregate into plain text for tests
-            lines = []
-            for w in words:
-                lines.append(json.dumps({"event": "token", "data": w}))
-            final = {
-                "answer": ensure_inline_citation(answer_str, citations).strip(),
-                "citations": citations,
-                "usage": {
-                    "prompt_tokens": 0,
-                    "completion_tokens": len(words),
-                    "cost_usd": 0.0,
-                    "latency_ms": 0,
-                },
-            }
-            lines.append(json.dumps({"event": "done", "data": final}))
-            log_request(request_id, route="/ask", status="ok", tokens=len(words), cost=0.0, latency=0)
-            return PlainTextResponse("\n".join(lines), media_type="text/event-stream")
 
         async def event_generator_list():
             start = time.time()
@@ -316,24 +275,9 @@ async def ask_endpoint(
 
         return EventSourceResponse(event_generator_list())
 
-    # Normal path (LLM)
-    if test_mode:
-        # Aggregate the stream so tests can read resp.text
-        lines = []
-        for result in tokens_from_openai(
-            context_chunks, question, max_tokens, settings.MODEL, settings.OPENAI_API_KEY, budget_usd
-        ):
-            if isinstance(result, tuple):
-                final_line, tokens, cost, latency = result
-                log_request(request_id, route="/ask", status="ok", tokens=tokens, cost=cost, latency=latency)
-                lines.append(final_line if isinstance(final_line, str) else json.dumps(final_line))
-            else:
-                lines.append(result if isinstance(result, str) else json.dumps(result))
-        return PlainTextResponse("\n".join(lines), media_type="text/event-stream")
-
     async def event_generator():
         for result in tokens_from_openai(
-            context_chunks, question, max_tokens, settings.MODEL, settings.OPENAI_API_KEY, budget_usd
+            context_chunks, question, max_tokens, settings.MODEL, settings.openai_api_key, budget_usd
         ):
             if await request.is_disconnected():
                 break

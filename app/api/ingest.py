@@ -7,6 +7,7 @@ import time
 from app.core.config import settings
 from app.core.logger import make_request_id, log_request
 from app.api import auth
+from app.core.chunk_manager import build_index
 
 router = APIRouter()
 
@@ -60,7 +61,6 @@ async def ingest_endpoint(
     chunk_count = 0
     est_tokens = 0
     try:
-        from app.core.chunk_manager import build_index
         chunk_count, est_tokens = build_index(doc_files)
     except Exception as e:
         status_code = "error"
