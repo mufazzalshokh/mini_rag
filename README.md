@@ -1,3 +1,5 @@
+![CI](https://github.com/mufazzalshokh/mini_rag/actions/workflows/ci.yml/badge.svg)
+
 # Mini RAG Q&A — FastAPI + FAISS + OpenAI
 
 A small, fast RAG (Retrieval-Augmented Generation) backend built with **FastAPI**, **FAISS**, and **OpenAI**.  
@@ -17,6 +19,24 @@ It ingests local documents, streams answers over **SSE**, **cites sources**, and
 - Dockerfile + Make targets, **pytest** tests, and **eval** scripts
 
 ---
+
+## Design & Architecture
+For design decisions, module structure, and production trade-offs see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+## Project Structure
+\```
+mini_rag/
+├── app/
+│   ├── main.py              # FastAPI app, health endpoint
+│   ├── api/                 # Route handlers (ask, ingest, auth)
+│   └── core/                # Config, retrieval, chunking, logging
+├── tests/                   # pytest suite (TestClient, no live server)
+├── eval/                    # Evaluation scripts + golden JSONL
+├── docs/                    # Sample documents
+├── docker-compose.yml
+├── ARCHITECTURE.md
+└── Makefile
+\```
 
 ## Getting Started
 
