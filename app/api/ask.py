@@ -277,7 +277,7 @@ async def ask_endpoint(
 
     async def event_generator():
         for result in tokens_from_openai(
-            context_chunks, question, max_tokens, settings.MODEL, settings.openai_api_key, budget_usd
+            context_chunks, question, max_tokens, settings.model_name, settings.openai_api_key, budget_usd
         ):
             if await request.is_disconnected():
                 break

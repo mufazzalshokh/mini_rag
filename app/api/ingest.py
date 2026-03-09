@@ -29,7 +29,7 @@ async def ingest_endpoint(
     start_time = time.time()
     status_code = "ok"
 
-    doc_folder = settings.dock_path
+    doc_folder = settings.docs_path
     docs_ingested = []
 
     # 1) Save any uploaded files
